@@ -55,9 +55,9 @@ void printItemName(int id) {
         case BREAD:      printf("Хлеб");        break;
         case WOOL:       printf("Шерсть");      break;
         case IRON:       printf("Железо");      break;
-        case GOLD:       printf("золото");      break;
-        case FISH:       printf("рыба");        break;
-        default:         printf("неизвестный"); break;
+        case GOLD:       printf("Золото");      break;
+        case FISH:       printf("Рыба");        break;
+        default:         printf("Неизвестный"); break;
     }
 }
 
@@ -121,103 +121,6 @@ void invertInventory(void) {
     printf("Инвентарь перевернут.\n");
 }
 
-int main(void)
-{
-    int action = -1;
-    int time;
-    while (action != 0)
-    {
-        if (current_time >= 24)
-        {
-            current_day = current_day + current_time / HOURS_PER_DAY;
-            current_time = current_time % HOURS_PER_DAY;
-        }
-
-        clearScreen(); // очищаем экран каждый раз перед выводом меню
-
-        printf("[0] Выход\n");
-        printf("[1] Посмотреть на часы\n");
-        printf("[2] Промотать время (Поработать)\n");
-        printf("[3] Посмотреть инвентарь\n");
-        printf("[4] Положить предмет в слот\n");
-        printf("[5] Выбросить предмет\n");
-        printf("[6] Инверсия карманов\n");
-        printf("Выберите действие: ");
-        action = getValidatedInput();
-
-        switch(action)
-        {
-            // первое действие
-            case 1:
-                printf("Текущее время: День %d, %02d:00\n", current_day, current_time);
-                printf("Нажмите Enter для продолжения...");
-                getchar();
-                break;
-
-            // второе действие
-            case 2:
-                printf("Сколько часов вы хотите поработать? ");
-                time = getValidatedInput();
-                if (time < 0) {
-                    printf("Ошибка: нельзя поработать отрицательное количество часов!\n");
-                } else {
-                    current_time = time + current_time;
-                    printf("Прошло %d часов.\n", time);
-                }
-                printf("Нажмите Enter для продолжения...");
-                getchar();
-                break;
-
-            // третье действие - инвентарь
-            case 3:
-                showInventory();
-                printf("Нажмите Enter для продолжения...");
-                getchar();
-                break;
-
-            // четвёртое действие - положить предмет
-            case 4:
-                putItemInSlot();
-                printf("Нажмите Enter для продолжения...");
-                getchar();
-                break;
-
-            // пятое действие - выбросить предмет
-            case 5:
-            {
-                printf("Введите индекс слота для выбрасывания (0-%d): ", INVENTORY_SIZE - 1);
-                int slot = getValidatedInput();
-                if (slot < 0 || slot >= INVENTORY_SIZE) {
-                    printf("Ошибка: индекс слота должен быть от 0 до %d!\n", INVENTORY_SIZE - 1);
-                    printf("Нажмите Enter для продолжения...");
-                    getchar();
-                    break;
-                }
-                
-                if (inventory[slot] != EMPTY_SLOT) {
-                    printf("Предмет ");
-                    printItemName(inventory[slot]);
-                    printf(" (ID: %d) выброшен из слота %d.\n", inventory[slot], slot);
-                    inventory[slot] = EMPTY_SLOT;
-                } else {
-                    printf("В этом слоте и так пусто!\n");
-                }
-                printf("Нажмите Enter для продолжения...");
-                getchar();
-                break;
-            }
-
-            // шестое действие - вариант "Инверсия карманов"
-            case 6:
-                invertInventory();
-                printf("Нажмите Enter для продолжения...");
-                getchar();
-                break;
-        }
-    }
-    return 0;
-}
-
 // константы
 #define INV_SIZE 10
 #define MAX_ITEMS 10
@@ -250,16 +153,20 @@ void load_items() {
             strcpy(item_names[i], "Ресурс");
         }
         return;
-    }
+    } else {
 
-    int id;
-    char name[NAME_LEN];
-    while (fscanf(f, "%d %31[^\n]", &id, name) == 2) {
-        if (id >= 0 && id < MAX_ITEMS) {
-            strcpy(item_names[id], name);
+        int id;
+        char name[NAME_LEN];
+        while (fscanf(f, "%d %31[^\n]", &id, name) == 2) {
+            name[strcspn(name, "\r\n")] = '\0';
+            
+            if (id >= 0 && id < MAX_ITEMS) {
+                strcpy(item_names[id], name);
+                id++;
+            }
         }
+        fclose(f);
     }
-    fclose(f);
 }
 
 // показ инвентаря
