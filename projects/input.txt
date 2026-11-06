@@ -1,0 +1,7 @@
+# комментарий_1
+difficulty = hard
+rain_chance = 40
+
+music_volume = 80
+# комментарий_2
+empty_value =
