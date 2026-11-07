@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 // объявление переменных
 #define INVENTORY_SIZE 10
@@ -310,6 +311,178 @@ void parse_config() {
     printf("Результат также сохранен в output.txt\n");
 }
 
+// константы 
+#define WALL '#'
+#define FLOOR '.'
+#define PLAYER '@'
+#define TRAP '^'
+#define UP 'U'
+#define DOWN 'D'
+
+// переменные
+char **map = NULL;
+int h = 0, w = 0; // размер карты
+int py = 1, px = 1; // корды игрока
+int exit_y = 1, exit_x = 1; // корды лестницы вниз (выход)
+int floor_num = 1;
+
+// очистка экрана
+void clear_screen() {
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
+
+
+
+// установка элемента на случайную пустую клетку
+void place_random(char symbol) {
+    int placed = 0;
+    while (!placed) {
+        int y = rand() % (h - 2) + 1;
+        int x = rand() % (w - 2) + 1;
+        if (map[y][x] == FLOOR) {
+            map[y][x] = symbol;
+            placed = 1;
+        }
+    }
+}
+
+// генерация нового этажа (с очисткой старой памяти)
+void generate_floor() {
+    // очистка памяти от предыдущего этажа
+    if (map != NULL) {
+        for (int i = 0; i < h; i++) free(map[i]);
+            free(map);
+    }
+
+    // случайный размер
+    h = rand() % 9 + 7;
+    w = rand() % 9 + 7;
+
+    // выделение памяти
+    map = (char**)malloc(h * sizeof(char*));
+    for (int i = 0; i < h; i++) {
+        map[i] = (char*)malloc(w * sizeof(char));
+        for (int j = 0; j < w; j++) {
+        // стены по краям, пол внутри
+            map[i][j] = (i == 0 || i == h-1 || j == 0 || j == w-1) ? WALL : FLOOR;
+        }
+    }
+
+    // лестница вниз (под игроком на старте)
+    exit_y = 1; exit_x = 1;
+    map[exit_y][exit_x] = DOWN;
+    py = exit_y; px = exit_x;
+
+    // ставим 1 лестницу наверх и 3 ловушки
+    place_random(UP);
+    place_random(TRAP);
+    place_random(TRAP);
+    place_random(TRAP);
+}
+
+// отрисовка карты
+void draw() {
+    clear_screen();
+    printf("=== БАШНЯ. Этаж: %d ===\n", floor_num);
+    printf("W/A/S/D - ходить, Q - выход (только на 'D')\n");
+    printf("Руны '^' телепортируют\n\n");
+
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (i == py && j == px) {
+                // если на старте, показываем игрока, иначе D
+                printf("%c ", (i == exit_y && j == exit_x && floor_num == 1) ? PLAYER : PLAYER);
+            } else {
+                printf("%c ", map[i][j]);
+            }
+        }
+        printf("\n");
+    }
+}
+
+// тп на ловушке
+void teleport() {
+    int empty_cells = 0;
+    // подсчет свободных клеток
+    for (int i = 1; i < h - 1; i++)
+        for (int j = 1; j < w - 1; j++)
+            if (map[i][j] == FLOOR) empty_cells++;
+
+    if (empty_cells == 0) return; // некуда тп
+
+    // ищем рандом клетку
+    int target = rand() % empty_cells;
+    int count = 0;
+
+    for (int i = 1; i < h - 1; i++) {
+        for (int j = 1; j < w - 1; j++) {
+            if (map[i][j] == FLOOR) {
+                if (count == target) {
+                    py = i; px = j;
+                    return;
+                }
+                count++;
+            }
+        }
+    }
+}
+
+// основной цикл
+void playTower() {
+    char move;
+    generate_floor();
+
+    while (1) {
+        draw();
+        printf("Ход: ");
+        scanf(" %c", &move); // пробел перед %c игнорирует энтер от предыдущего ввода
+        clear_buf();
+        move = tolower(move);
+
+        int ny = py, nx = px; // новые корды
+
+        if (move == 'w') ny--;
+        else if (move == 's') ny++;
+        else if (move == 'a') nx--;
+        else if (move == 'd') nx++;
+        else if (move == 'q') {
+            // проверка стоим ли на выходе
+            if (py == exit_y && px == exit_x) {
+                printf("\nВы сбежали домой!\n");
+                return;
+            } else {
+                printf("\nВыход (Q) работает только на лестнице вниз 'D'!\nНажмите Enter...");
+                clear_buf();
+                continue;
+            }
+        } else continue; // неверная клавиша
+
+        // проверка, не врезались ли мы в стену
+        if (map[ny][nx] != WALL) {
+            // игрок ходит
+            py = ny; px = nx;
+
+            // проверка на взаимодействие с объектами
+            if (map[py][px] == TRAP) {
+                map[py][px] = FLOOR; // Руна исчезает
+                printf("\nНаступили на руну! Телепортация...\nНажмите Enter...");
+                clear_buf();
+                teleport();
+            }
+            else if (map[py][px] == UP) {
+                printf("\nПереход на следующий этаж. Нажмите Enter...\n");
+                clear_buf();
+                floor_num++;
+                generate_floor();
+            }
+        }
+    }
+}
+
 // глав функция
 int main() {
     printf("Введите имя фермера: ");
@@ -439,195 +612,6 @@ int main() {
             default:
                 printf("Нет такого пункта.\n");
         }
-    }
-
-    return 0;
-}
-// константы 
-#define WALL '#'
-#define FLOOR '.'
-#define PLAYER '@'
-#define TRAP '^'
-#define UP 'U'
-#define DOWN 'D'
-
-// переменные
-char **map = NULL;
-int h = 0, w = 0; // размер карты
-int py = 1, px = 1; // корды игрока
-int exit_y = 1, exit_x = 1; // корды лестницы вниз (выход)
-int floor_num = 1;
-
-// очистка экрана
-void clear_screen() {
-#ifdef _WIN32
-    system("cls");
-#else
-    system("clear");
-#endif
-}
-
-// дурак
-void clear_buf() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-}
-
-// установка элемента на случайную пустую клетку
-void place_random(char symbol) {
-    int placed = 0;
-    while (!placed) {
-        int y = rand() % (h - 2) + 1;
-        int x = rand() % (w - 2) + 1;
-        if (map[y][x] == FLOOR) {
-            map[y][x] = symbol;
-            placed = 1;
-        }
-    }
-}
-
-// генерация нового этажа (с очисткой старой памяти)
-void generate_floor() {
-    // очистка памяти от предыдущего этажа
-    if (map != NULL) {
-        for (int i = 0; i < h; i++) free(map[i]);
-            free(map);
-    }
-
-    // случайный размер
-    h = rand() % 9 + 7;
-    w = rand() % 9 + 7;
-
-    // выделение памяти
-    map = (char**)malloc(h * sizeof(char*));
-    for (int i = 0; i < h; i++) {
-        map[i] = (char*)malloc(w * sizeof(char));
-        for (int j = 0; j < w; j++) {
-        // стены по краям, пол внутри
-            map[i][j] = (i == 0 || i == h-1 || j == 0 || j == w-1) ? WALL : FLOOR;
-        }
-    }
-
-    // лестница вниз (под игроком на старте)
-    exit_y = 1; exit_x = 1;
-    map[exit_y][exit_x] = DOWN;
-    py = exit_y; px = exit_x;
-
-    // ставим 1 лестницу наверх и 3 ловушки
-    place_random(UP);
-    place_random(TRAP);
-    place_random(TRAP);
-    place_random(TRAP);
-}
-
-// отрисовка карты
-void draw() {
-    clear_screen();
-    printf("=== БАШНЯ. Этаж: %d ===\n", floor_num);
-    printf("W/A/S/D - ходить, Q - выход (только на 'D')\n");
-    printf("Руны '^' телепортируют\n\n");
-
-    for (int i = 0; i < h; i++) {
-        for (int j = 0; j < w; j++) {
-            if (i == py && j == px) {
-                // если на старте, показываем игрока, иначе D
-                printf("%c ", (i == exit_y && j == exit_x && floor_num == 1) ? PLAYER : PLAYER);
-            } else {
-                printf("%c ", map[i][j]);
-            }
-        }
-        printf("\n");
-    }
-}
-
-// тп на ловушке
-void teleport() {
-    int empty_cells = 0;
-    // подсчет свободных клеток
-    for (int i = 1; i < h - 1; i++)
-        for (int j = 1; j < w - 1; j++)
-            if (map[i][j] == FLOOR) empty_cells++;
-
-    if (empty_cells == 0) return; // некуда тп
-
-    // ищем рандом клетку
-    int target = rand() % empty_cells;
-    int count = 0;
-
-    for (int i = 1; i < h - 1; i++) {
-        for (int j = 1; j < w - 1; j++) {
-            if (map[i][j] == FLOOR) {
-                if (count == target) {
-                    py = i; px = j;
-                    return;
-                }
-                count++;
-            }
-        }
-    }
-}
-
-// основной цикл
-void play() {
-    char move;
-    generate_floor();
-
-    while (1) {
-        draw();
-        printf("Ход: ");
-        scanf(" %c", &move); // пробел перед %c игнорирует энтер от предыдущего ввода
-        clear_buf();
-        move = tolower(move);
-
-        int ny = py, nx = px; // новые корды
-
-        if (move == 'w') ny--;
-        else if (move == 's') ny++;
-        else if (move == 'a') nx--;
-        else if (move == 'd') nx++;
-        else if (move == 'q') {
-            // проверка стоим ли на выходе
-            if (py == exit_y && px == exit_x) {
-                printf("\nВы сбежали домой!\n");
-                return;
-            } else {
-                printf("\nВыход (Q) работает только на лестнице вниз 'D'!\nНажмите Enter...");
-                clear_buf();
-                continue;
-            }
-        } else continue; // неверная клавиша
-
-        // проверка, не врезались ли мы в стену
-        if (map[ny][nx] != WALL) {
-            // игрок ходит
-            py = ny; px = nx;
-
-            // проверка на взаимодействие с объектами
-            if (map[py][px] == TRAP) {
-                map[py][px] = FLOOR; // Руна исчезает
-                printf("\nНаступили на руну! Телепортация...\nНажмите Enter...");
-                clear_buf();
-                teleport();
-            }
-            else if (map[py][px] == UP) {
-                printf("\nПереход на следующий этаж. Нажмите Enter...\n");
-                clear_buf();
-                floor_num++;
-                generate_floor();
-            }
-        }
-    }
-}
-
-int main() {
-    srand(time(NULL));
-
-    play();
-
-    // очистка памяти перед выходом
-    if (map != NULL) {
-        for (int i = 0; i < h; i++) free(map[i]);
-        free(map);
     }
 
     return 0;
